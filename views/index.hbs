@@ -1,0 +1,44 @@
+{{#if instance}}
+  <div class="container mx-auto py-8 flex space-x-8">
+    <div class="flex flex-col w-1/2">
+      <h3 class="text-xl">Your Balance: {{instance.balance}}</h3>
+      <span class="h-8"></span>
+      <h6 class="text-lg">Your Public Key: </h6>
+      <p>{{instance.publicKey}}</p>
+    </div>
+    <div class="flex flex-col w-1/2">
+      <h3 class="text-xl">Transection</h3>
+      <form action="/transection" method="post" class="flex flex-col">
+        <textarea
+          class="border text-xs p-2"
+          name="publicKey"
+          id="priv"
+          cols="30"
+          rows="10"
+          placeholder="paste public key here!"
+        ></textarea>
+        <br />
+        <input
+          type="number"
+          name="amount"
+          id="amount"
+          placeholder="amount"
+          class="border p-4"
+        />
+        <br />
+        <textarea name="payerPublicKey" hidden>{{instance.publicKey}}</textarea>
+        <textarea
+          name="payerPrivateKey"
+          hidden
+        >{{instance.privateKey}}</textarea>
+        <button
+          class="w-full px-4 py-2 bg-gray-900 text-center text-white text-xl"
+        >LOGIN</button>
+      </form>
+    </div>
+  </div>
+{{else}}
+  <div class="container mx-auto py-8">
+    <h1 class="text-3xl">You need to log in!</h1>
+  </div>
+{{/if}}

@@ -1,116 +1,91 @@
-import * as crypto from 'crypto';
+import express, { Request, Response } from "express";
+import * as crypto from "crypto";
+import {
+  Wallet,
+  Chain,
+  getBalance,
+  firstWallet,
+  sendMoney,
+} from "./blockchain";
 
-class Transaction {
-  constructor(
-    public amount: number,
-    public payer: string, //public key
-    public payee: string //public key
-  ) {}
+var hbs = require("hbs");
+hbs.registerPartials(__dirname + "/views/partials");
 
-  toString() {
-    return JSON.stringify(this);
-  }
-}
+console.log(Chain.instance.chain);
 
-class Block {
-  public nonce = Math.round(Math.random() * 999999999);
+const app = express();
 
-  constructor(
-    public prevHash: string,
-    public transaction: Transaction,
-    public ts = Date.now()
-  ) {}
+app.use(
+  express.urlencoded({
+    extended: true,
+  })
+);
 
-  get hash() {
-    const str = JSON.stringify(this);
-    const hash = crypto.createHash('SHA256');
-    hash.update(str).end();
-    return hash.digest('hex');
-  }
-}
+app.use(express.json());
 
-class Chain {
-  public static instance = new Chain();
+app.set("view engine", "hbs");
 
-  chain: Block[];
+app.get("/", (req: Request, res: Response) => {
+  res.render("index");
+});
 
-  constructor() {
-    this.chain = [new Block('', new Transaction(100, 'genesis', 'berker'))];
-  }
+app.post("/", (req: Request, res: Response) => {
+  const priv = req.body.privateKey.replace(/(\r)/gm, "");
+  const publ = req.body.publicKey.replace(/(\r)/gm, "");
+  const balance = getBalance(publ);
+  res.render("index", {
+    instance: {
+      publicKey: publ,
+      privateKey: priv,
+      balance,
+    },
+  });
+});
 
-  get lastBlock() {
-    return this.chain[this.chain.length - 1];
-  }
+app.post("/transection", (req: Request, res: Response) => {
+  const payerpriv = req.body.payerPrivateKey.replace(/(\r)/gm, "");
+  const payerpubl = req.body.payerPublicKey.replace(/(\r)/gm, "");
+  const payeepubl = req.body.publicKey.replace(/(\r)/gm, "");
 
-  mine(nonce: number) {
-    let solution = 1;
-    console.log('⛏ mining...');
+  const balance = getBalance(payerpubl);
 
-    while (true) {
-      const hash = crypto.createHash('MD5');
-      hash.update((nonce + solution).toString()).end();
+  const amount = parseInt(req.body.amount);
 
-      const attempt = hash.digest('hex');
+  console.log(req.body, balance, amount);
 
-      if (attempt.substr(0, 4) === '0000') {
-        console.log(`Solved: ${solution}`);
-        return solution;
-      }
+  if (balance >= amount) {
+    sendMoney(amount, payerpubl, payerpriv, payeepubl);
 
-      solution += 1;
-    }
-  }
+    const newBalance = getBalance(payerpubl);
 
-  addBlock(
-    transaction: Transaction,
-    senderPublicKey: string,
-    signature: Buffer
-  ) {
-    const verifier = crypto.createVerify('SHA256');
-    verifier.update(transaction.toString());
-
-    const isValid = verifier.verify(senderPublicKey, signature);
-
-    if (isValid) {
-      const newBlock = new Block(this.lastBlock.hash, transaction);
-      this.mine(newBlock.nonce);
-      this.chain.push(newBlock);
-    }
-  }
-}
-
-class Wallet {
-  public publicKey: string;
-  public privateKey: string;
-
-  constructor() {
-    const keypair = crypto.generateKeyPairSync('rsa', {
-      modulusLength: 2048,
-      publicKeyEncoding: { type: 'spki', format: 'pem' },
-      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    res.render("index", {
+      instance: {
+        publicKey: payerpubl,
+        privateKey: payerpriv,
+        balance: newBalance,
+      },
     });
-    this.privateKey = keypair.privateKey;
-    this.publicKey = keypair.publicKey;
+  } else {
+    res.send("Yetersiz Bakiye");
   }
+});
 
-  sendMoney(amount: number, payeePublicKey: string) {
-    const transaction = new Transaction(amount, this.publicKey, payeePublicKey);
+app.get("/createwallet", (req: Request, res: Response) => {
+  const wallet = new Wallet();
+  res.render("createwallet", {
+    privateKey: wallet.privateKey,
+    publicKey: wallet.publicKey,
+  });
+});
 
-    const sign = crypto.createSign('SHA256');
-    sign.update(transaction.toString()).end();
+app.get("/firstwallet", (req: Request, res: Response) => {
+  res.send(firstWallet);
+});
 
-    const signature = sign.sign(this.privateKey);
-    Chain.instance.addBlock(transaction, this.publicKey, signature);
-  }
-}
+app.get("/login", (req: Request, res: Response) => {
+  res.render("login");
+});
 
-const berker = new Wallet();
-const emre = new Wallet();
-const dodo = new Wallet();
-
-berker.sendMoney(50, emre.publicKey);
-emre.sendMoney(23, dodo.publicKey);
-dodo.sendMoney(5, emre.publicKey);
-dodo.sendMoney(5, berker.publicKey);
-
-console.log(Chain.instance);
+app.listen(3000, () =>
+  console.log("Server listening on http://localhost:3000")
+);
